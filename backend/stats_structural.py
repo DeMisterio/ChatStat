@@ -21,12 +21,15 @@ def compute_structural_stats(df: pd.DataFrame) -> dict:
     stats['message_counts'] = author_counts.to_dict()
     stats['message_shares'] = (author_counts / total_messages * 100).to_dict()
     
-    df['prev_grouped_id'] = df.get('grouped_id', pd.Series([None]*len(df))).shift(1)
+    if 'grouped_id' not in df.columns:
+        df['grouped_id'] = None
+        
+    df['prev_grouped_id'] = df['grouped_id'].shift(1)
     
     is_duplicate_album = (df['author_name'] == df['prev_author_name']) & \
                          (df['time_diff'] < 2) & \
-                         (df.get('grouped_id', pd.Series([None]*len(df))).notna()) & \
-                         (df.get('grouped_id', pd.Series([None]*len(df))) == df['prev_grouped_id'])
+                         (df['grouped_id'].notna()) & \
+                         (df['grouped_id'] == df['prev_grouped_id'])
                          
     collapsed_df = df[~is_duplicate_album].copy()
     collapsed_df['prev_datetime'] = collapsed_df['datetime'].shift(1)
