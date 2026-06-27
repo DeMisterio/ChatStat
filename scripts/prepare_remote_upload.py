@@ -14,6 +14,7 @@ def main():
     parser = argparse.ArgumentParser(description="Подготовка зашифрованного файла для работы на арендованном GPU.")
     parser.add_argument("--input", required=True, help="Путь к исходному файлу (.json, .txt, .zip)")
     parser.add_argument("--output", required=True, help="Путь для сохранения зашифрованного файла (например, result.enc)")
+    parser.add_argument("--key", help="Использовать существующий ключ (base64) вместо генерации нового")
     parser.add_argument("--save-key-to-file", action="store_true", help="ОПАСНО: Сохранить ключ в локальный файл (менее безопасно)")
     args = parser.parse_args()
 
@@ -22,9 +23,22 @@ def main():
         print(f"Ошибка: Файл {args.input} не найден.")
         return
 
-    # Generate key
-    key_bytes = generate_key()
-    key_b64 = base64.b64encode(key_bytes).decode('utf-8')
+    if args.key:
+        try:
+            key_b64 = args.key
+            key_bytes = base64.b64decode(key_b64)
+            if len(key_bytes) != 32:
+                print("Ошибка: Ключ должен быть 256-битным (32 байта).")
+                return
+            print("🔑 Используется переданный ключ.")
+        except Exception as e:
+            print(f"Ошибка при чтении ключа: {e}")
+            return
+    else:
+        # Generate key
+        key_bytes = generate_key()
+        key_b64 = base64.b64encode(key_bytes).decode('utf-8')
+        print("🔑 Сгенерирован новый случайный ключ.")
 
     # Encrypt
     with open(input_path, "rb") as f:
@@ -39,13 +53,16 @@ def main():
     with open(args.output, "wb") as f:
         f.write(ciphertext)
 
-    print(f"\n✅ Файл успешно зашифрован и сохранён как: {args.output}")
-    print("\nКЛЮЧ ДЛЯ РАСШИФРОВКИ:")
-    print("-" * 50)
-    print(key_b64)
-    print("-" * 50)
-    print("\n⚠️ ВНИМАНИЕ: Скопируйте этот ключ — он не сохраняется на диске по умолчанию!")
-    print("Передайте его на удалённый инстанс через переменную окружения CHATSTAT_DECRYPT_KEY при запуске обработки.\n")
+    output_abs_path = Path(args.output).resolve()
+    print(f"\n✅ Файл успешно зашифрован и сохранён по пути:\n{output_abs_path}")
+    if not args.key:
+        print("\nКЛЮЧ ДЛЯ РАСШИФРОВКИ:")
+        print("-" * 50)
+        print(key_b64)
+        print("-" * 50)
+        print("\n⚠️ ВНИМАНИЕ: Скопируйте этот ключ — он не сохраняется на диске по умолчанию!")
+    
+    print("Передайте ключ на удалённый инстанс через переменную окружения CHATSTAT_DECRYPT_KEY при запуске обработки.\n")
 
     if args.save_key_to_file:
         keys_dir = Path(__file__).resolve().parent / "generated_keys"
