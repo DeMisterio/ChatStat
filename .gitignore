@@ -1,0 +1,38 @@
+# Python and Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+env/
+.venv/
+.env
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ChatStat Specific Config and Caches
+backend/.hf_token
+backend/.checkpoints/
+scripts/generated_keys/
+.env.remote
+
+# Encrypted files and keys
+*.enc
+*.key
+
+# User Chat Data (Do not commit real chat logs)
+*.json
+*.txt
+*.zip
+
+# Whitelist necessary files
+!requirements.txt
+!result_test.json
