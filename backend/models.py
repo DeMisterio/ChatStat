@@ -47,7 +47,7 @@ class ModelCache:
                 "text-classification", 
                 model="cointegrated/rubert-tiny2-cedr-emotion-detection", 
                 device=device,
-                return_all_scores=True
+                top_k=None
             )
         return self._emotion_pipeline
 

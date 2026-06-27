@@ -78,6 +78,8 @@ def compute_sentiment(df: pd.DataFrame, task_id: str = None):
     # CEDR typically has: joy, sadness, surprise, fear, anger, no_emotion
     joy_scores, sadness_scores, surprise_scores, fear_scores, anger_scores, neutral_scores = [], [], [], [], [], []
     for emo_list in emotions:
+        if isinstance(emo_list, dict):
+            emo_list = [emo_list]
         emo_dict = {d['label']: d['score'] for d in emo_list}
         joy_scores.append(emo_dict.get('joy', 0))
         sadness_scores.append(emo_dict.get('sadness', 0))

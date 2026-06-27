@@ -71,11 +71,24 @@ def process_chat_in_background(task_id: str, filepath: str, source: str, llm_mod
         update_task_stage(task_id, "parsing")
         
         temp_dir = None
-        if source == "encrypted" or filepath.endswith(".enc"):
+        is_encrypted = source == "encrypted" or filepath.endswith(".enc")
+        
+        if not is_encrypted:
+            # Check if file is encrypted based on content (e.g., if renamed to .json)
+            with open(filepath, 'rb') as f:
+                head = f.read(2)
+            if head != b'PK': # not a zip
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        f.read(4096)
+                except UnicodeDecodeError:
+                    is_encrypted = True
+
+        if is_encrypted:
             set_custom_stage_text(task_id, "Расшифровка файла в памяти...")
             key_b64 = os.environ.get('CHATSTAT_DECRYPT_KEY')
             if not key_b64:
-                set_task_error(task_id, "Загружен зашифрованный файл (.enc), но ключ CHATSTAT_DECRYPT_KEY не установлен на сервере.")
+                set_task_error(task_id, "Загружен зашифрованный файл, но ключ CHATSTAT_DECRYPT_KEY не установлен на сервере.")
                 return
             
             import base64
@@ -92,11 +105,7 @@ def process_chat_in_background(task_id: str, filepath: str, source: str, llm_mod
                 return
                 
             temp_dir = tempfile.mkdtemp()
-            if plaintext.startswith(b'{') or plaintext.startswith(b'['):
-                temp_filepath = os.path.join(temp_dir, "decrypted.json")
-                source = "telegram"
-                with open(temp_filepath, "wb") as f: f.write(plaintext)
-            elif plaintext.startswith(b'PK'):
+            if plaintext.startswith(b'PK'):
                 temp_filepath = os.path.join(temp_dir, "decrypted.zip")
                 source = "whatsapp"
                 with open(temp_filepath, "wb") as f: f.write(plaintext)
@@ -109,6 +118,21 @@ def process_chat_in_background(task_id: str, filepath: str, source: str, llm_mod
                             temp_filepath = os.path.join(temp_dir, txt_files[0])
                 except zipfile.BadZipFile:
                     pass
+            elif plaintext.startswith(b'{'):
+                temp_filepath = os.path.join(temp_dir, "decrypted.json")
+                source = "telegram"
+                with open(temp_filepath, "wb") as f: f.write(plaintext)
+            elif plaintext.startswith(b'['):
+                # Could be a JSON list or WhatsApp text bracket format "[15.01..."
+                try:
+                    import json
+                    json.loads(plaintext.decode('utf-8'))
+                    temp_filepath = os.path.join(temp_dir, "decrypted.json")
+                    source = "telegram"
+                except:
+                    temp_filepath = os.path.join(temp_dir, "decrypted.txt")
+                    source = "whatsapp"
+                with open(temp_filepath, "wb") as f: f.write(plaintext)
             else:
                 temp_filepath = os.path.join(temp_dir, "decrypted.txt")
                 source = "whatsapp"
