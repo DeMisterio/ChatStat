@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Chat Analyzer</title>
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <!-- Предотвращение 404 ошибок для иконок -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="animations.css">
+</head>
+<body>
+    <div class="theme-toggle" id="theme-toggle">
+        <i class="fas fa-moon"></i>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="main-header">
+            <h1><i class="fab fa-telegram"></i> Мега-анализатор чатов</h1>
+            <p>Откройте скрытые паттерны, темы и эмоции в вашей переписке</p>
+        </header>
+
+        <!-- Upload View -->
+        <div id="upload-view" class="view active">
+            <h2>Загрузите историю чата</h2>
+            <div style="background: var(--surface); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; text-align: left; font-size: 0.9rem;">
+                <p style="margin-top: 0;"><strong>Как получить файл:</strong></p>
+                <p><strong>Telegram:</strong> Откройте чат в Telegram Desktop → Нажмите ⋮ → Export chat history → Снимите галочки с фото/видео → Убедитесь, что формат <strong>JSON</strong> → Export.</p>
+                <p><strong>WhatsApp:</strong> Откройте чат на телефоне → Нажмите на имя → Export Chat → Выберите "Без медиафайлов" (Without media) → Сохраните полученный <strong>.txt</strong> или <strong>.zip</strong> файл.</p>
+            </div>
+            
+            <form id="upload-form">
+                <div class="drop-zone" id="drop-zone">
+                    <i class="fas fa-cloud-upload-alt drop-icon"></i>
+                    <p>Перетащите .json, .txt, .zip или зашифрованный .enc файл сюда<br>или нажмите для выбора</p>
+                    <input type="file" id="file-input" accept=".json,.txt,.zip,.enc" hidden>
+                    <button class="btn primary" id="btn-browse" type="button">Выбрать файл</button>
+                </div>
+            </form>
+            
+            <!-- Advanced Settings -->
+            <div class="advanced-settings-wrapper">
+                <div class="advanced-settings-toggle" id="advanced-settings-toggle">
+                    <i class="fas fa-cog"></i> Расширенные настройки
+                </div>
+                <div class="advanced-settings-panel" id="advanced-settings-panel" style="display: none;">
+                    
+                    <!-- HuggingFace Token Auth -->
+                    <div class="setting-group" id="hf-auth-group" style="margin-bottom: 1rem;">
+                        <div style="margin-bottom: 0.5rem;">
+                            <strong>Ускорение загрузки моделей (HuggingFace)</strong>
+                        </div>
+                        <p class="settings-hint" style="margin-top: 0; margin-bottom: 0.8rem;">
+                            HuggingFace ограничивает скорость скачивания моделей без авторизации — загрузка может занять часы вместо минут. Введите бесплатный токен, чтобы ускорить процесс.
+                            <br>
+                            <a href="https://huggingface.co/settings/tokens" target="_blank">Получить токен &rarr;</a>
+                        </p>
+                        
+                        <!-- Input mode -->
+                        <div id="hf-token-input-mode" style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+                            <div style="position: relative; flex: 1;">
+                                <input type="password" id="hf-token-input" placeholder="hf_..." style="width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+                                <i class="fas fa-eye" id="hf-token-toggle-eye" style="position: absolute; right: 10px; top: 10px; cursor: pointer; color: var(--text-muted);"></i>
+                            </div>
+                            <button id="hf-btn-save" class="btn primary" style="padding: 0.5rem 1rem; font-size: 0.9rem;">Проверить и сохранить</button>
+                        </div>
+                        
+                        <!-- Status mode -->
+                        <div id="hf-token-status-mode" style="display: none; align-items: center; gap: 1rem; background: rgba(16, 185, 129, 0.1); padding: 0.5rem 1rem; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; color: #10b981;">
+                                <i class="fas fa-check-circle"></i>
+                                <span id="hf-token-masked-display">hf_***...abcd</span>
+                            </div>
+                            <button id="hf-btn-delete" class="btn secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">Удалить токен</button>
+                        </div>
+                        
+                        <div id="hf-auth-message" style="margin-top: 0.5rem; font-size: 0.85rem;"></div>
+                    </div>
+
+                    <hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--border);">
+
+                    <div class="setting-item">
+                        <label for="topic-count-select">Количество тем:</label>
+                        <select id="topic-count-select" style="padding: 0.3rem; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+                            <option value="auto">Авто</option>
+                            <option value="5">5</option>
+                            <option value="10">10</option>
+                            <option value="15">15</option>
+                            <option value="20">20</option>
+                        </select>
+                    </div>
+
+                    <div class="setting-item">
+                        <label for="embedding-quality-select">Качество эмбеддингов для тем:</label>
+                        <select id="embedding-quality-select" style="padding: 0.3rem; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+                            <option value="high">Качественно (mpnet, по умолчанию)</option>
+                            <option value="fast">Быстро (MiniLM)</option>
+                        </select>
+                    </div>
+
+                    <!-- Ollama Integration -->
+                    <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 0.5rem;">
+                        <div style="font-weight: 600; margin-bottom: 0.3rem;">Умный анализ (Ollama LLM)</div>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="radio" name="llm_mode" value="none" checked> Без LLM
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="radio" name="llm_mode" value="light"> Лёгкие подписи тем (быстро)
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="radio" name="llm_mode" value="advanced"> Advanced Analysis (глубоко, нужна мощная модель)
+                        </label>
+                    </div>
+
+                    <div class="setting-item" id="llm-model-container" style="display: none; padding-left: 1.5rem;">
+                        <label for="llm-model-select">Модель (лёгкая):</label>
+                        <select id="llm-model-select" style="padding: 0.3rem; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+                            <option value="qwen3:4b">qwen3:4b</option>
+                            <option value="gemma4:e4b">gemma4:e4b</option>
+                            <option value="qwen2.5:7b">qwen2.5:7b</option>
+                            <option value="qwen2.5:1.5b">qwen2.5:1.5b</option>
+                        </select>
+                        <button id="fetch-ollama-btn" class="icon-btn" title="Обновить список из Ollama"><i class="fas fa-sync-alt"></i></button>
+                    </div>
+
+                    <div class="setting-item" id="advanced-llm-model-container" style="display: none; padding-left: 1.5rem;">
+                        <label for="advanced-llm-model-select">Модель (мощная):</label>
+                        <select id="advanced-llm-model-select" style="padding: 0.3rem; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+                            <option value="gemma4:31b">gemma4:31b (рекомендуется)</option>
+                            <option value="qwen2.5:32b">qwen2.5:32b</option>
+                            <option value="llama3.1:70b">llama3.1:70b</option>
+                        </select>
+                    </div>
+                    </div>
+                    <p class="settings-hint">Требуется запущенный локально <a href="https://ollama.com/" target="_blank">Ollama</a> API (http://localhost:11434).</p>
+                    
+                    <hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--border);">
+                    
+                    <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 0.5rem; background: rgba(239, 68, 68, 0.05); padding: 1rem; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2);">
+                        <div style="font-weight: 600; color: #ef4444;"><i class="fas fa-shield-alt"></i> Работа на арендованном GPU (Vast.ai)</div>
+                        <p style="margin: 0; font-size: 0.85rem;">Вы можете зашифровать файл локально с помощью скрипта <code>scripts/prepare_remote_upload.py</code> и загрузить сюда полученный <b>.enc</b> файл.</p>
+                        <p style="margin: 0; font-size: 0.85rem;"><b>⚠️ ВНИМАНИЕ:</b> Шифрование защищает файл только при передаче и хранении на диске. Это <b>НЕ ЗАЩИЩАЕТ</b> от оператора сервера, который может намеренно инспектировать память процесса во время расшифровки. Используйте только проверенные хосты, если это критично.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress View -->
+        <div id="progress-view" class="view">
+            <div class="progress-container">
+                <h2>Анализируем чат...</h2>
+                <p id="source-format" style="color: var(--primary); font-weight: 500; font-size: 0.9rem; margin-bottom: 1rem;"></p>
+                <div class="anim-container" id="dynamic-spinner-container">
+                    <div class="anim-spinner"></div>
+                </div>
+                <h2 id="progress-stage">Инициализация...</h2>
+                <div class="progress-bar-wrapper">
+                    <div class="progress-bar-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-stats">
+                    <span id="progress-percent">0.00%</span>
+                    <span id="progress-elapsed">Прошло: 0 сек</span>
+                    <span id="progress-eta">Осталось: -- сек</span>
+                </div>
+                
+                <div id="cpu-graph-container" style="width: 100%; height: 60px; margin-top: 1rem;"></div>
+                
+                <div id="live-facts-container" style="display: none; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); text-align: left;">
+                    <h4 style="margin-top: 0; margin-bottom: 0.5rem; color: var(--text-muted);"><i class="fas fa-info-circle"></i> Факты о чате (пока идёт анализ):</h4>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.9rem;">
+                        <div class="stat-item"><span class="stat-label">Всего сообщений:</span><span class="stat-val" id="fact-total-messages"></span></div>
+                        <div class="stat-item"><span class="stat-label">Самый активный:</span><span class="stat-val" id="fact-most-active"></span></div>
+                        <div class="stat-item"><span class="stat-label">Самый тихий:</span><span class="stat-val" id="fact-most-quiet"></span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="error-container" id="error-container" style="display: none;">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3 id="error-title">Ошибка</h3>
+                <p id="error-message"></p>
+                <button class="btn secondary" onclick="location.reload()">Начать заново</button>
+            </div>
+        </div>
+
+        <!-- Dashboard View -->
+        <div id="dashboard-view" class="view">
+            <!-- Summary Stats -->
+            <section class="summary-cards" id="summary-cards">
+                <!-- Filled via JS -->
+            </section>
+            
+            <!-- AI Summary (Advanced Analysis) -->
+            <section class="dashboard-section full-width ai-summary-section" id="ai-summary-section" style="display: none; background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(16, 185, 129, 0.1)); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--primary); margin-top: 1rem;">
+                <div class="section-header" style="margin-bottom: 1rem;">
+                    <h2><i class="fas fa-robot"></i> Резюме от AI</h2>
+                </div>
+                <div id="ai-summary-content" style="font-size: 1rem; line-height: 1.6; color: var(--text);">
+                    <!-- Filled via JS -->
+                </div>
+                <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted); font-style: italic;">
+                    ⚠️ Это интерпретация AI на основе статистики, не объективный факт. Могут быть неточности.
+                </div>
+            </section>
+            
+            <!-- Semantic Search -->
+            <section class="dashboard-section full-width search-section" style="background: var(--card-bg); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);">
+                <div class="section-header" style="margin-bottom: 1rem;">
+                    <h2><i class="fas fa-search"></i> Семантический поиск по чату</h2>
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <input type="text" id="semantic-search-input" placeholder="О чем говорили? (например: когда обсуждали переезд)" style="flex: 1; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+                    <button id="semantic-search-btn" class="btn primary"><i class="fas fa-search"></i> Найти</button>
+                </div>
+                <div id="semantic-search-results" style="margin-top: 1rem; display: none;">
+                    <div class="spinner" id="search-spinner" style="display: none; width: 30px; height: 30px;"></div>
+                    <div id="search-results-list" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                </div>
+            </section>
+
+            <!-- Grid Layout for Charts -->
+            <div class="dashboard-grid">
+                
+                <!-- Activity Section -->
+                <section class="dashboard-section full-width">
+                    <div class="section-header">
+                        <h2><i class="fas fa-chart-line"></i> Активность</h2>
+                    </div>
+                    <div class="charts-row">
+                        <div class="chart-container" id="chart-monthly-dynamics"></div>
+                        <div class="chart-container" id="chart-heatmap"></div>
+                    </div>
+                </section>
+
+                <!-- Who is the boss -->
+                <section class="dashboard-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-crown"></i> Кто здесь главный</h2>
+                    </div>
+                    <div class="chart-container" id="chart-message-shares"></div>
+                    <div class="stats-list" id="stats-boss">
+                        <!-- Filled via JS -->
+                    </div>
+                </section>
+
+                <!-- Emotions -->
+                <section class="dashboard-section full-width">
+                    <div class="section-header">
+                        <h2><i class="fas fa-heart"></i> Эмоции</h2>
+                    </div>
+                    <div class="charts-row">
+                        <div class="chart-container" id="chart-emotional-portrait"></div>
+                        <div class="chart-container" id="chart-sentiment-timeline"></div>
+                    </div>
+                    <div class="chart-container" id="chart-emotional-arcs" style="margin-top: 1.5rem; height: 150px;"></div>
+                </section>
+                
+                <!-- Top Emojis -->
+                <section class="dashboard-section full-width">
+                    <div class="section-header">
+                        <h2><i class="far fa-smile"></i> Топ Эмодзи</h2>
+                    </div>
+                    <div class="charts-row">
+                        <div class="chart-container" id="chart-top-emojis-overall"></div>
+                        <div class="chart-container" id="chart-top-emojis-authors"></div>
+                    </div>
+                    <div class="stats-list" id="stats-exclusive-emojis" style="margin-top: 1rem;">
+                    </div>
+                    <div class="charts-row" style="margin-top: 1.5rem;">
+                        <div class="chart-container" id="chart-emoji-categories"></div>
+                    </div>
+                </section>
+
+                <!-- Words & Language -->
+                <section class="dashboard-section full-width">
+                    <div class="section-header">
+                        <h2><i class="fas fa-comment-dots"></i> Слова и язык</h2>
+                    </div>
+                    <div class="charts-row">
+                        <div class="chart-container" id="chart-top-words"></div>
+                        <div class="stats-list" id="stats-language">
+                            <!-- Filled via JS -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Topics -->
+                <section class="dashboard-section full-width">
+                    <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h2><i class="fas fa-layer-group"></i> Темы разговоров</h2>
+                        <div id="topic-warning" style="display: none; background: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; border: 1px solid rgba(239, 68, 68, 0.2);">
+                            ⚠️ Построены на <span id="topic-included-percent"></span>% сообщений (остальные — короткие реакции)
+                        </div>
+                    </div>
+                    <div class="chart-container" id="chart-umap" style="margin-bottom: 2rem;"></div>
+                    <div class="topics-grid" id="topics-grid">
+                        <!-- Cards filled via JS -->
+                    </div>
+                </section>
+
+                <!-- Brightest Moments -->
+                <section class="dashboard-section full-width highlight-section" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(236, 72, 153, 0.1));">
+                    <div class="section-header">
+                        <h2><i class="fas fa-star"></i> Самые яркие моменты</h2>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Это автоматическая оценка по тексту, может ошибаться на иронии и контексте</span>
+                    </div>
+                    <div class="bright-moments-grid" id="bright-moments-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+                        <!-- Filled via JS -->
+                    </div>
+                </section>
+
+                <!-- Funny Finds -->
+                <section class="dashboard-section full-width highlight-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-lightbulb"></i> Забавные находки</h2>
+                    </div>
+                    <div class="funny-finds-grid" id="funny-finds-grid">
+                        <!-- Filled via JS -->
+                    </div>
+                </section>
+
+            </div>
+
+            <div class="dashboard-footer" style="display: flex; gap: 1rem; justify-content: center;">
+                <button class="btn secondary" onclick="location.reload()"><i class="fas fa-redo"></i> Проанализировать другой чат</button>
+                <button class="btn delete-btn" id="delete-checkpoint-btn" style="background-color: #ff4757; color: white;"><i class="fas fa-trash"></i> Удалить сохранённый анализ этого чата</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Checkpoint Modal -->
+    <div id="checkpoint-modal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+        <div class="modal-content" style="background: var(--bg-card); margin: 15% auto; padding: 2rem; border-radius: 12px; width: 80%; max-width: 500px; text-align: center;">
+            <h3><i class="fas fa-history"></i> Чат уже анализировался</h3>
+            <p id="checkpoint-date-text" style="margin: 1rem 0; color: var(--text-secondary);"></p>
+            <p id="checkpoint-hash-text" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;"></p>
+            <p style="margin-bottom: 1.5rem;">Вы можете мгновенно загрузить сохранённый результат или пересчитать его заново (неизменённые стадии загрузятся из кэша).</p>
+            <div style="display: flex; gap: 1rem; justify-content: center;">
+                <button class="btn primary" id="btn-load-checkpoint">Загрузить сохранённое</button>
+                <button class="btn secondary" id="btn-recalc-checkpoint">Пересчитать</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=3"></script>
+</body>
+</html>
